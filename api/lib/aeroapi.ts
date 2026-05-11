@@ -53,13 +53,13 @@ export type FetchResult = {
 
 export async function fetchScheduledArrivals(opts: {
   airport: string;
-  startIso: string;
-  endIso: string;
+  rangeStart: Date;
+  rangeEnd: Date;
   apiKey: string;
 }): Promise<FetchResult> {
   const url = new URL(`${AEROAPI_BASE}/airports/${opts.airport}/flights/scheduled_arrivals`);
-  url.searchParams.set('start', opts.startIso);
-  url.searchParams.set('end', opts.endIso);
+  url.searchParams.set('start', formatAeroApiTime(opts.rangeStart));
+  url.searchParams.set('end', formatAeroApiTime(opts.rangeEnd));
   url.searchParams.set('max_pages', '5'); // hard ceiling — KRDM never approaches this
 
   const r = await fetch(url.toString(), { headers: { 'x-apikey': opts.apiKey } });
@@ -72,6 +72,12 @@ export async function fetchScheduledArrivals(opts: {
   const pages = data.num_pages ?? Math.max(1, Math.ceil(arrivals.length / PAGE_SIZE));
 
   return { arrivals, pages, rawStatus: r.status };
+}
+
+// AeroAPI v4 only accepts second-precision ISO 8601 ("2026-05-11T23:07:27Z").
+// `Date.toISOString()` adds milliseconds; stripping them avoids a 400.
+function formatAeroApiTime(d: Date): string {
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 export function normalizeArrival(a: AeroApiArrival): NormalizedArrival | null {

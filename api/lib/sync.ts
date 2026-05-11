@@ -31,8 +31,8 @@ export async function syncRange(opts: {
   try {
     const res = await fetchScheduledArrivals({
       airport: AIRPORT,
-      startIso: opts.rangeStart.toISOString(),
-      endIso: opts.rangeEnd.toISOString(),
+      rangeStart: opts.rangeStart,
+      rangeEnd: opts.rangeEnd,
       apiKey: opts.apiKey,
     });
     pages = res.pages;
