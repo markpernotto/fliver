@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Flight {
+  id               String    @id @default(uuid())
+  sourceId         String    @unique @map("source_id")
+  ident            String?
+  carrier          String?
+  flightNumber     String?   @map("flight_number")
+  scheduledArrival DateTime  @map("scheduled_arrival")
+  estimatedArrival DateTime? @map("estimated_arrival")
+  originIata       String    @map("origin_iata")
+  originCity       String?   @map("origin_city")
+  aircraftType     String?   @map("aircraft_type")
+  estimatedPax     Int?      @map("estimated_pax")
+  isLeisureOrigin  Boolean   @default(false) @map("is_leisure_origin")
+  status           String?
+  pulledAt         DateTime  @default(now()) @map("pulled_at")
+
+  @@index([estimatedArrival])
+  @@index([scheduledArrival])
+  @@map("flights")
+}
+
+model ForecastWindow {
+  id          String    @id @default(uuid())
+  windowStart DateTime  @map("window_start")
+  windowEnd   DateTime  @map("window_end")
+  score       Decimal   @db.Decimal(4, 2)
+  factors     Json
+  computedAt  DateTime  @default(now()) @map("computed_at")
+  notifiedAt  DateTime? @map("notified_at")
+
+  @@unique([windowStart, windowEnd])
+  @@index([windowStart])
+  @@map("forecast_windows")
+}
+
+model Shift {
+  id                 String   @id @default(uuid())
+  startedAt          DateTime @map("started_at")
+  endedAt            DateTime @map("ended_at")
+  grossEarningsCents Int      @map("gross_earnings_cents")
+  tipEarningsCents   Int      @default(0) @map("tip_earnings_cents")
+  rideCount          Int      @map("ride_count")
+  startOdometer      Int?     @map("start_odometer")
+  endOdometer        Int?     @map("end_odometer")
+  notes              String?
+  predictedScore     Decimal? @map("predicted_score") @db.Decimal(4, 2)
+  factorsSnapshot    Json?    @map("factors_snapshot")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  rides Ride[]
+
+  @@index([startedAt])
+  @@map("shifts")
+}
+
+model Ride {
+  id          String   @id @default(uuid())
+  shiftId     String?  @map("shift_id")
+  startedAt   DateTime @map("started_at")
+  endedAt     DateTime @map("ended_at")
+  grossCents  Int      @map("gross_cents")
+  tipCents    Int      @default(0) @map("tip_cents")
+  miles       Decimal? @db.Decimal(6, 2)
+  pickupZone  String?  @map("pickup_zone")
+  dropoffZone String?  @map("dropoff_zone")
+  productType String?  @default("XL") @map("product_type")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  shift Shift? @relation(fields: [shiftId], references: [id])
+
+  @@index([startedAt])
+  @@map("rides")
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  platform   String   @default("ios")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("device_tokens")
+}
+
+model ApiCallLog {
+  id                 String   @id @default(uuid())
+  provider           String
+  endpoint           String
+  tier               String?
+  calledAt           DateTime @default(now()) @map("called_at")
+  statusCode         Int?     @map("status_code")
+  pages              Int?
+  estimatedCostCents Decimal? @map("estimated_cost_cents") @db.Decimal(8, 4)
+  recordsReturned    Int?     @map("records_returned")
+  errorMessage       String?  @map("error_message")
+
+  @@index([provider, calledAt])
+  @@map("api_call_log")
+}

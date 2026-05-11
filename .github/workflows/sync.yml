@@ -1,0 +1,67 @@
+name: RDM cron
+
+on:
+  schedule:
+    # Daily snapshot — 5 AM Pacific. GitHub Actions cron is UTC; 12:00 UTC =
+    # 5 AM PDT / 4 AM PST. The endpoint doesn't care which.
+    - cron: '0 12 * * *'
+    # Notification check every 15 min. Phase 4 will wire near-term flight refresh
+    # into this same trigger (boost happens just before a push fires), so no
+    # separate hourly poll is needed in Phase 1. On-demand refresh comes from the
+    # mobile app in Phase 3.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Manual trigger: daily | hourly | notify'
+        type: choice
+        required: true
+        default: daily
+        options:
+          - daily
+          - hourly
+          - notify
+
+jobs:
+  daily-snapshot:
+    if: github.event.schedule == '0 12 * * *' || github.event.inputs.action == 'daily'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily sync
+        run: |
+          curl -fsS -X POST "$VERCEL_URL/api/cron/sync-arrivals?type=daily" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json"
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+  # Manual-only hourly sync — only fires via workflow_dispatch when you explicitly
+  # want it. Useful for ad-hoc testing.
+  hourly-sync:
+    if: github.event.inputs.action == 'hourly'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger hourly sync
+        run: |
+          curl -fsS -X POST "$VERCEL_URL/api/cron/sync-arrivals?type=hourly" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json"
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+  notify-check:
+    if: github.event.schedule == '*/15 * * * *' || github.event.inputs.action == 'notify'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger notification check
+        run: |
+          # Phase 4 endpoint — don't fail the workflow if it doesn't exist yet
+          curl -fsS -X POST "$VERCEL_URL/api/cron/notify" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" || \
+            echo "notify endpoint not deployed yet — Phase 4"
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
