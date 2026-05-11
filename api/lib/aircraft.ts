@@ -49,7 +49,15 @@ const LEISURE_SKI_SEASON = new Set(['DEN', 'SLC']);
 
 export function isLeisureOrigin(iata: string, when: Date = new Date()): boolean {
   if (LEISURE_ALWAYS.has(iata)) return true;
-  const month = when.getMonth(); // 0 = Jan
+  // Pacific month — RDM ski-season demand is anchored to local calendar, not UTC.
+  const monthOneIndexed = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'numeric',
+    }).format(when),
+    10
+  );
+  const month = monthOneIndexed - 1;
   const inSkiSeason = month <= 2 || month === 11;
   if (inSkiSeason && LEISURE_SKI_SEASON.has(iata)) return true;
   return false;

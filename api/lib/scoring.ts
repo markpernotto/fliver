@@ -77,12 +77,37 @@ function scoreHour(start: Date, end: Date, allFlights: Flight[]): ScoredWindow {
   return { start, end, score: total, factors };
 }
 
+const SCORING_TZ = 'America/Los_Angeles';
+
+type PacificCalendar = { hour: number; dow: number; month: number };
+
+function inPacific(t: Date): PacificCalendar {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: SCORING_TZ,
+    weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
+    month: 'numeric',
+  });
+  const parts = fmt.formatToParts(t);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  const hourRaw = parseInt(get('hour'), 10);
+  const month = parseInt(get('month'), 10);
+  const dowMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  return {
+    hour: hourRaw === 24 ? 0 : hourRaw,
+    dow: dowMap[get('weekday')] ?? 0,
+    month: month - 1,
+  };
+}
+
 // Encodes the manual baseline from the original plan (mid-day bank, Fri/Sat evening,
-// Sun morning departures, Sat winter apré-ski). When data arrives, the regression
-// step will reweight these.
+// Sun morning departures, Sat winter apré-ski). Pacific clock — RDM operates in PT.
+// When data arrives, the regression step will reweight these.
 function baselineDemandScore(t: Date): number {
-  const dow = t.getDay(); // 0 = Sun
-  const hour = t.getHours();
+  const { hour, dow, month } = inPacific(t);
 
   // Mid-day flight bank Mon–Sat
   if (dow >= 1 && dow <= 6 && hour >= 10 && hour < 13) return 1.5;
@@ -94,7 +119,6 @@ function baselineDemandScore(t: Date): number {
   if ((dow === 5 || dow === 6) && hour >= 17 && hour < 22) return 1.5;
 
   // Sat winter apré-ski (Dec–Mar)
-  const month = t.getMonth();
   const inSkiSeason = month <= 2 || month === 11;
   if (dow === 6 && hour >= 15 && hour < 18 && inSkiSeason) return 1.0;
 
